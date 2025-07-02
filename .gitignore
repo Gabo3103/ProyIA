@@ -1,0 +1,14 @@
+# Archivos objeto de C/C++
+*.o
+
+# Archivos de salida
+salidas/*
+!salidas/.gitkeep
+
+# Archivos de respaldo o temporales
+*~
+*.log
+
+# Ejecutables
+proyecto
+*.exe
