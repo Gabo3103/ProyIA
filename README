@@ -1,0 +1,43 @@
+# VRPB - Vehicle Routing Problem with Backhauls
+
+Este proyecto implementa una solución inicial al **VRPB (Problema de Ruteo de Vehículos con Devoluciones)**. Más adelante, se integrará la metaheurística **Simulated Annealing** para mejorar las rutas generadas.
+
+---
+
+## Estructura del Proyecto
+
+/instancias → Archivos .txt con las instancias del problema
+/salidas → Archivos .out con las soluciones generadas
+main.cpp → Código principal (lectura, solución inicial, salida)
+Makefile → Script de compilación y probar distintas instancias
+
+
+---
+
+## Requisitos
+
+- Sistema Linux, WSL o compatible con Bash  
+- `g++`   
+- `make` instalado  
+
+---
+
+## Compilación
+
+Ejecuta desde la terminal en la raíz del proyecto:
+
+```bash
+make clean 
+
+make
+
+make run 
+
+```
+Se genera una solución con la instancia GA1.txt, para probar otras instancias por ejemplo GB1.txt:
+
+```bash
+
+make run  INST=GB1
+
+```
