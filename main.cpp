@@ -230,6 +230,96 @@ Solucion generar_solucion_inicial(const vector<Nodo>& nodos, int cantidad_vehicu
     return sol;
 }
 
+// Movimiento Relocate
+bool relocate(Solucion& sol, const unordered_map<int, Nodo>& mapa_nodos, float capacidad_vehiculo, int id_deposito) {
+    mt19937 rng(time(0));
+    uniform_int_distribution<> distrib_ruta(0, sol.rutas.size() - 1);
+
+    int origen_idx = distrib_ruta(rng);
+    int destino_idx = distrib_ruta(rng);
+    while (destino_idx == origen_idx) destino_idx = distrib_ruta(rng);
+
+    Ruta& ruta_origen = sol.rutas[origen_idx];
+    Ruta& ruta_destino = sol.rutas[destino_idx];
+
+    vector<int> candidatos;
+    for (size_t i = 1; i < ruta_origen.nodos.size() - 1; ++i) {
+        int id = ruta_origen.nodos[i];
+        if (mapa_nodos.at(id).tipo != 0) candidatos.push_back(i);
+    }
+    if (candidatos.empty()) return false;
+
+    uniform_int_distribution<> distrib_nodo(0, candidatos.size() - 1);
+    int idx_en_origen = candidatos[distrib_nodo(rng)];
+    int id_nodo = ruta_origen.nodos[idx_en_origen];
+    const Nodo& nodo = mapa_nodos.at(id_nodo);
+
+    // 🔍 Depuración inicial
+    std::cout << "\n🔄 Intentando mover Nodo " << id_nodo
+            << " (" << (nodo.tipo == 1 ? "Linehaul" : "Backhaul") << ") "
+            << "de Ruta " << origen_idx + 1 << " a Ruta " << destino_idx + 1 << "\n";
+
+    std::cout << "Ruta origen antes: ";
+    for (int id : ruta_origen.nodos) std::cout << id << " ";
+    std::cout << "\nRuta destino antes: ";
+    for (int id : ruta_destino.nodos) std::cout << id << " ";
+    std::cout << "\n";
+
+    float costo_antes = sol.costo_total;
+
+    // Remover el nodo de la ruta origen
+    ruta_origen.nodos.erase(ruta_origen.nodos.begin() + idx_en_origen);
+    if (nodo.tipo == 1) ruta_origen.carga_entregada -= nodo.demanda;
+    else ruta_origen.carga_recogida -= nodo.demanda;
+
+    size_t insert_pos = 1;
+    if (nodo.tipo == 2) {
+        while (insert_pos + 1 < ruta_destino.nodos.size()) {
+            int tipo = mapa_nodos.at(ruta_destino.nodos[insert_pos]).tipo;
+            if (tipo == 2) break;
+            insert_pos++;
+        }
+    }
+
+    float nueva_entrega = ruta_destino.carga_entregada;
+    float nueva_recogida = ruta_destino.carga_recogida;
+    if (nodo.tipo == 1) nueva_entrega += nodo.demanda;
+    else nueva_recogida += nodo.demanda;
+
+    if (nueva_entrega + nueva_recogida <= capacidad_vehiculo) {
+        ruta_destino.nodos.insert(ruta_destino.nodos.begin() + insert_pos, id_nodo);
+        ruta_destino.carga_entregada = nueva_entrega;
+        ruta_destino.carga_recogida = nueva_recogida;
+
+        ruta_origen.carga_utilizada = ruta_origen.carga_entregada + ruta_origen.carga_recogida;
+        ruta_destino.carga_utilizada = ruta_destino.carga_entregada + ruta_destino.carga_recogida;
+
+        ruta_origen.costo_total = calcular_costo_ruta(ruta_origen, mapa_nodos);
+        ruta_destino.costo_total = calcular_costo_ruta(ruta_destino, mapa_nodos);
+
+        sol.costo_total = 0;
+        for (auto& r : sol.rutas) sol.costo_total += r.costo_total;
+
+        float costo_despues = sol.costo_total;
+        float delta = costo_despues - costo_antes;
+
+        // ✅ Confirmación y estado final
+        std::cout << "✅ Movimiento realizado exitosamente.\n";
+        std::cout << "Ruta origen después: ";
+        for (int id : ruta_origen.nodos) std::cout << id << " ";
+        std::cout << "\nRuta destino después: ";
+        for (int id : ruta_destino.nodos) std::cout << id << " ";
+        std::cout << "\nDelta de costo: " << delta << "\n";
+
+        return true;
+    } else {
+        std::cout << "❌ Movimiento rechazado por capacidad.\n";
+        return false;
+    }
+}
+
+
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         cerr << "Uso: ./proyecto <nombre_instancia>" << endl;
@@ -246,6 +336,7 @@ int main(int argc, char* argv[]) {
 
     clock_t inicio = clock();
     Solucion sol = generar_solucion_inicial(nodos, cantidad_vehiculos, capacidad_vehiculo, id_deposito);
+    relocate(sol, mapa_nodos, capacidad_vehiculo, id_deposito);
     clock_t fin = clock();
     double tiempo_ejecucion = double(fin - inicio) / CLOCKS_PER_SEC;
 
