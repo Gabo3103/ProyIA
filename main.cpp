@@ -163,41 +163,61 @@ Solucion generar_solucion_inicial(const vector<Nodo>& nodos, int cantidad_vehicu
 
     size_t next_linehaul = 0, next_backhaul = 0;
 
-    // (2 y 7) Asignar un linehaul inicial a cada camión desde el depósito 
-    for (int i = 0; i < cantidad_vehiculos && next_linehaul < linehauls.size(); ++i) {
-        Ruta& ruta = sol.rutas[i];
-        ruta.nodos.push_back(id_deposito); 
-
-        const Nodo& n = linehauls[next_linehaul++];
-        ruta.nodos.push_back(n.id);
-        ruta.carga_entregada += n.demanda; 
-        usados.insert(n.id);
-        ruta.nodos.push_back(id_deposito); // (6a Aseguramos que cada vehículo termina en el deposito)
+    // Iniciar cada ruta con el depósito
+    for (int i = 0; i < cantidad_vehiculos; ++i) {
+        sol.rutas[i].nodos.push_back(id_deposito);
     }
 
-    // (2) Reasignar linehauls restantes sin superar capacidad
-    for (; next_linehaul < linehauls.size(); ++next_linehaul) {
-        const Nodo& n = linehauls[next_linehaul];
-        for (auto& ruta : sol.rutas) {
-            if (!usados.count(n.id) && ruta.carga_entregada + n.demanda <= capacidad_vehiculo) { // (1) no sobrepasar capacidad en entregas
-                ruta.nodos.insert(ruta.nodos.end() - 1, n.id);
+    // Asignar 1 linehaul a cada camión si es posible
+    for (int i = 0; i < cantidad_vehiculos && next_linehaul < linehauls.size(); ++i) {
+        Ruta& ruta = sol.rutas[i];
+        const Nodo& n = linehauls[next_linehaul++];
+        ruta.nodos.push_back(n.id);
+        ruta.carga_entregada += n.demanda;
+        usados.insert(n.id);
+    }
+
+    // (2) Reasignar linehauls restantes sin superar capacidad y realizando una distribución + equitativa 
+    bool asignado = true;
+    while (asignado && next_linehaul < linehauls.size()) {
+        asignado = false;
+        for (int i = 0; i < cantidad_vehiculos && next_linehaul < linehauls.size(); ++i) {
+            Ruta& ruta = sol.rutas[i];
+            const Nodo& n = linehauls[next_linehaul];
+            if (!usados.count(n.id) && ruta.carga_entregada + n.demanda <= capacidad_vehiculo) {
+                ruta.nodos.push_back(n.id);
                 ruta.carga_entregada += n.demanda;
                 usados.insert(n.id);
-                break;
+                ++next_linehaul;
+                asignado = true;
             }
         }
     }
 
+    // (6a Aseguramos que cada vehículo termina en el deposito)
+    for (int i = 0; i < cantidad_vehiculos; ++i) {
+        sol.rutas[i].nodos.push_back(id_deposito);
+    }
+
     // (4 y 5) Asignar backhauls a rutas ya con entregas, sin pasar capacidad
-    for (; next_backhaul < backhauls.size(); ++next_backhaul) {
-        const Nodo& n = backhauls[next_backhaul];
-        for (auto& ruta : sol.rutas) {
+    bool backhaul_asignado = true;
+    while (backhaul_asignado && next_backhaul < backhauls.size()) {
+        backhaul_asignado = false;
+        for (int i = 0; i < cantidad_vehiculos && next_backhaul < backhauls.size(); ++i) {
+            Ruta& ruta = sol.rutas[i];
+            const Nodo& n = backhauls[next_backhaul];
+
             float capacidad_restante = capacidad_vehiculo - ruta.carga_recogida;
-            if (!usados.count(n.id) && ruta.carga_entregada > 0 && n.demanda <= capacidad_restante) { // (4) no sobrepasar capacidad en recogidas y permitir rutas solo linehaul pero no backhaul
+
+            if (!usados.count(n.id) &&
+                ruta.carga_entregada > 0 &&  // (4) no sobrepasar capacidad en recogidas y permitir rutas solo linehaul pero no backhaul
+                n.demanda <= capacidad_restante) {
+
                 ruta.nodos.insert(ruta.nodos.end() - 1, n.id); // (9) después de entregas
                 ruta.carga_recogida += n.demanda;
                 usados.insert(n.id);
-                break;
+                ++next_backhaul;
+                backhaul_asignado = true;
             }
         }
     }
@@ -206,7 +226,6 @@ Solucion generar_solucion_inicial(const vector<Nodo>& nodos, int cantidad_vehicu
     for (auto& ruta : sol.rutas) {
         ruta.carga_utilizada = ruta.carga_entregada + ruta.carga_recogida;
     }
-
     calcular_costo_total(sol, mapa_nodos);
     return sol;
 }
