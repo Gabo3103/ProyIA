@@ -230,96 +230,148 @@ Solucion generar_solucion_inicial(const vector<Nodo>& nodos, int cantidad_vehicu
     return sol;
 }
 
-// Movimiento Relocate
-bool relocate(Solucion& sol, const unordered_map<int, Nodo>& mapa_nodos, float capacidad_vehiculo, int id_deposito) {
+// Movimiento SWAP
+bool swap_nodos(Solucion& sol, const unordered_map<int, Nodo>& mapa_nodos, float capacidad_vehiculo, int max_intentos = 1000) {
     mt19937 rng(time(0));
     uniform_int_distribution<> distrib_ruta(0, sol.rutas.size() - 1);
+    uniform_int_distribution<> distrib_tipo(1, 2); // 1: linehaul, 2: backhaul
 
-    int origen_idx = distrib_ruta(rng);
-    int destino_idx = distrib_ruta(rng);
-    while (destino_idx == origen_idx) destino_idx = distrib_ruta(rng);
+    for (int intento = 0; intento < max_intentos; ++intento) {
+        int tipo_objetivo = distrib_tipo(rng); // Decide si swap de linehauls o backhauls
 
-    Ruta& ruta_origen = sol.rutas[origen_idx];
-    Ruta& ruta_destino = sol.rutas[destino_idx];
+        int idx_ruta1 = distrib_ruta(rng);
+        int idx_ruta2 = distrib_ruta(rng);
+        while (idx_ruta2 == idx_ruta1) idx_ruta2 = distrib_ruta(rng);
 
-    vector<int> candidatos;
-    for (size_t i = 1; i < ruta_origen.nodos.size() - 1; ++i) {
-        int id = ruta_origen.nodos[i];
-        if (mapa_nodos.at(id).tipo != 0) candidatos.push_back(i);
-    }
-    if (candidatos.empty()) return false;
+        Ruta& ruta1 = sol.rutas[idx_ruta1];
+        Ruta& ruta2 = sol.rutas[idx_ruta2];
 
-    uniform_int_distribution<> distrib_nodo(0, candidatos.size() - 1);
-    int idx_en_origen = candidatos[distrib_nodo(rng)];
-    int id_nodo = ruta_origen.nodos[idx_en_origen];
-    const Nodo& nodo = mapa_nodos.at(id_nodo);
+        vector<int> candidatos1, candidatos2;
 
-    // 🔍 Depuración inicial
-    std::cout << "\n🔄 Intentando mover Nodo " << id_nodo
-            << " (" << (nodo.tipo == 1 ? "Linehaul" : "Backhaul") << ") "
-            << "de Ruta " << origen_idx + 1 << " a Ruta " << destino_idx + 1 << "\n";
+        for (size_t i = 1; i < ruta1.nodos.size() - 1; ++i)
+            if (mapa_nodos.at(ruta1.nodos[i]).tipo == tipo_objetivo) candidatos1.push_back(i);
+        for (size_t i = 1; i < ruta2.nodos.size() - 1; ++i)
+            if (mapa_nodos.at(ruta2.nodos[i]).tipo == tipo_objetivo) candidatos2.push_back(i);
 
-    std::cout << "Ruta origen antes: ";
-    for (int id : ruta_origen.nodos) std::cout << id << " ";
-    std::cout << "\nRuta destino antes: ";
-    for (int id : ruta_destino.nodos) std::cout << id << " ";
-    std::cout << "\n";
+        if (candidatos1.empty() || candidatos2.empty()) continue;
 
-    float costo_antes = sol.costo_total;
+        shuffle(candidatos1.begin(), candidatos1.end(), rng);
+        shuffle(candidatos2.begin(), candidatos2.end(), rng);
 
-    // Remover el nodo de la ruta origen
-    ruta_origen.nodos.erase(ruta_origen.nodos.begin() + idx_en_origen);
-    if (nodo.tipo == 1) ruta_origen.carga_entregada -= nodo.demanda;
-    else ruta_origen.carga_recogida -= nodo.demanda;
+        for (int i : candidatos1) {
+            int id1 = ruta1.nodos[i];
+            const Nodo& nodo1 = mapa_nodos.at(id1);
 
-    size_t insert_pos = 1;
-    if (nodo.tipo == 2) {
-        while (insert_pos + 1 < ruta_destino.nodos.size()) {
-            int tipo = mapa_nodos.at(ruta_destino.nodos[insert_pos]).tipo;
-            if (tipo == 2) break;
-            insert_pos++;
+            for (int j : candidatos2) {
+                int id2 = ruta2.nodos[j];
+                const Nodo& nodo2 = mapa_nodos.at(id2);
+
+                float nueva_entrega1 = ruta1.carga_entregada;
+                float nueva_entrega2 = ruta2.carga_entregada;
+                float nueva_recogida1 = ruta1.carga_recogida;
+                float nueva_recogida2 = ruta2.carga_recogida;
+
+                if (tipo_objetivo == 1) {
+                    nueva_entrega1 = nueva_entrega1 - nodo1.demanda + nodo2.demanda;
+                    nueva_entrega2 = nueva_entrega2 - nodo2.demanda + nodo1.demanda;
+                } else {
+                    nueva_recogida1 = nueva_recogida1 - nodo1.demanda + nodo2.demanda;
+                    nueva_recogida2 = nueva_recogida2 - nodo2.demanda + nodo1.demanda;
+                }
+
+                // Validación por separado
+                bool capacidad_ok = (nueva_entrega1 <= capacidad_vehiculo && nueva_entrega2 <= capacidad_vehiculo &&
+                                    nueva_recogida1 <= capacidad_vehiculo && nueva_recogida2 <= capacidad_vehiculo);
+
+                if (capacidad_ok) {
+                    // cout << "\n✅ Movimiento SWAP aceptado (intento " << intento + 1 << "):" << endl;
+                    // cout << "Tipo de nodo: " << (tipo_objetivo == 1 ? "Linehaul" : "Backhaul") << endl;
+                    // cout << "Ruta " << idx_ruta1 + 1 << " cambia nodo " << id1 << " por nodo " << id2 << endl;
+                    // cout << "Ruta " << idx_ruta2 + 1 << " cambia nodo " << id2 << " por nodo " << id1 << endl;
+
+                    swap(ruta1.nodos[i], ruta2.nodos[j]);
+
+                    ruta1.carga_entregada = nueva_entrega1;
+                    ruta2.carga_entregada = nueva_entrega2;
+                    ruta1.carga_recogida = nueva_recogida1;
+                    ruta2.carga_recogida = nueva_recogida2;
+
+                    ruta1.carga_utilizada = nueva_entrega1 + nueva_recogida1;
+                    ruta2.carga_utilizada = nueva_entrega2 + nueva_recogida2;
+
+                    ruta1.costo_total = calcular_costo_ruta(ruta1, mapa_nodos);
+                    ruta2.costo_total = calcular_costo_ruta(ruta2, mapa_nodos);
+
+                    sol.costo_total = 0;
+                    for (auto& r : sol.rutas) sol.costo_total += r.costo_total;
+
+                    return true;
+                } else {
+                    cout << "❌ Rechazado por capacidad individual: "
+                        << "Ruta " << idx_ruta1 + 1 << " -> Entrega: " << nueva_entrega1 << ", Recogida: " << nueva_recogida1
+                        << " | Ruta " << idx_ruta2 + 1 << " -> Entrega: " << nueva_entrega2 << ", Recogida: " << nueva_recogida2 << endl;
+                }
+            }
         }
     }
 
-    float nueva_entrega = ruta_destino.carga_entregada;
-    float nueva_recogida = ruta_destino.carga_recogida;
-    if (nodo.tipo == 1) nueva_entrega += nodo.demanda;
-    else nueva_recogida += nodo.demanda;
+    cout << "\n❌ No se pudo realizar un SWAP válido tras " << max_intentos << " intentos." << endl;
+    return false;
+}
 
-    if (nueva_entrega + nueva_recogida <= capacidad_vehiculo) {
-        ruta_destino.nodos.insert(ruta_destino.nodos.begin() + insert_pos, id_nodo);
-        ruta_destino.carga_entregada = nueva_entrega;
-        ruta_destino.carga_recogida = nueva_recogida;
+Solucion simulated_annealing(Solucion solucion_inicial,
+                            const unordered_map<int, Nodo>& mapa_nodos,
+                            float capacidad_vehiculo,
+                            float temperatura_inicial = 10000.0,
+                            float alfa = 0.95,
+                            int iteraciones_por_temperatura = 100,
+                            int max_iteraciones = 1000000) {
+    mt19937 rng(time(0));
+    uniform_real_distribution<> prob(0.0, 1.0);
 
-        ruta_origen.carga_utilizada = ruta_origen.carga_entregada + ruta_origen.carga_recogida;
-        ruta_destino.carga_utilizada = ruta_destino.carga_entregada + ruta_destino.carga_recogida;
+    Solucion sc = solucion_inicial;
+    Solucion sbest = solucion_inicial;
+    float T = temperatura_inicial;
+    int t = 0;
 
-        ruta_origen.costo_total = calcular_costo_ruta(ruta_origen, mapa_nodos);
-        ruta_destino.costo_total = calcular_costo_ruta(ruta_destino, mapa_nodos);
+    while (t < max_iteraciones && T > 1e-3) {
+        for (int k = 0; k < iteraciones_por_temperatura; ++k) {
+            Solucion vecino = sc;
 
-        sol.costo_total = 0;
-        for (auto& r : sol.rutas) sol.costo_total += r.costo_total;
+            bool exito = swap_nodos(vecino, mapa_nodos, capacidad_vehiculo);
+            if (!exito) continue;
 
-        float costo_despues = sol.costo_total;
-        float delta = costo_despues - costo_antes;
+            float delta_eval = vecino.costo_total - sc.costo_total;
 
-        // ✅ Confirmación y estado final
-        std::cout << "✅ Movimiento realizado exitosamente.\n";
-        std::cout << "Ruta origen después: ";
-        for (int id : ruta_origen.nodos) std::cout << id << " ";
-        std::cout << "\nRuta destino después: ";
-        for (int id : ruta_destino.nodos) std::cout << id << " ";
-        std::cout << "\nDelta de costo: " << delta << "\n";
+            if (delta_eval < 0) {
+                sc = vecino;
+                cout << "[Mejora] Costo mejorado: " << sc.costo_total << endl;
+            } else {
+                float p = exp(-delta_eval / T);
+                if (prob(rng) < p) {
+                    sc = vecino;
+                    cout << "[Aceptado por prob] Nuevo costo: " << sc.costo_total << " (Δ: " << delta_eval << ", T: " << T << ")" << endl;
+                } else {
+                    continue;
+                }
+            }
 
-        return true;
-    } else {
-        std::cout << "❌ Movimiento rechazado por capacidad.\n";
-        return false;
+            if (sc.costo_total < sbest.costo_total) {
+                sbest = sc;
+                cout << "[Nueva mejor solución]: " << sbest.costo_total << endl;
+            }
+        }
+
+
+        T *= alfa;
+        t++;
     }
+
+    return sbest;
 }
 
 
-
+//MAIN
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         cerr << "Uso: ./proyecto <nombre_instancia>" << endl;
@@ -336,13 +388,12 @@ int main(int argc, char* argv[]) {
 
     clock_t inicio = clock();
     Solucion sol = generar_solucion_inicial(nodos, cantidad_vehiculos, capacidad_vehiculo, id_deposito);
-    relocate(sol, mapa_nodos, capacidad_vehiculo, id_deposito);
+    Solucion solucion_optima = simulated_annealing(sol, mapa_nodos, capacidad_vehiculo);
     clock_t fin = clock();
     double tiempo_ejecucion = double(fin - inicio) / CLOCKS_PER_SEC;
 
     cout << "\n=== Solucion Inicial ===" << endl;
     cout << "Costo total: " << sol.costo_total << endl;
-
     for (size_t i = 0; i < sol.rutas.size(); ++i) {
         cout << "Ruta " << i + 1 << ": ";
         for (int id : sol.rutas[i].nodos) {
@@ -353,8 +404,20 @@ int main(int argc, char* argv[]) {
         cout << " | Total: " << sol.rutas[i].carga_utilizada;
         cout << " | Costo: " << sol.rutas[i].costo_total << endl;
     }
-    escribir_salida(nombre_instancia, sol, mapa_nodos, tiempo_ejecucion);
 
+    cout << "\n=== Solución Óptima ===" << endl;
+    cout << "Costo total: " << solucion_optima.costo_total << endl;
+    for (size_t i = 0; i < solucion_optima.rutas.size(); ++i) {
+        cout << "Ruta " << i + 1 << ": ";
+        for (int id : solucion_optima.rutas[i].nodos) {
+            cout << id << " ";
+        }
+        cout << "| Entrega: " << solucion_optima.rutas[i].carga_entregada;
+        cout << " | Recolección: " << solucion_optima.rutas[i].carga_recogida;
+        cout << " | Total: " << solucion_optima.rutas[i].carga_utilizada;
+        cout << " | Costo: " << solucion_optima.rutas[i].costo_total << endl;
+    }
+    
+    escribir_salida(nombre_instancia, solucion_optima, mapa_nodos, tiempo_ejecucion);
     return 0;
 }
-//SOLUCION SA: MOVIMIENTO, TEMPERATURA, SECUENCIA DE N ALEATORIOS, CALCULO DELTA EVAL Y FUNCIÓN DE ACEPTACIÓN
