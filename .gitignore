@@ -3,6 +3,7 @@
 
 # Archivos de salida
 salidas/*
+salidasTest/*
 !salidas/.gitkeep
 
 # Archivos de respaldo o temporales

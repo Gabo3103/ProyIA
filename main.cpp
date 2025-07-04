@@ -401,41 +401,16 @@ int main(int argc, char* argv[]) {
     clock_t inicio = clock();
     Solucion solucion_inicial = generar_solucion_inicial(nodos, cantidad_vehiculos, capacidad_vehiculo, id_deposito);
 
-    //Borrar
-    cout << "\n=== Solución Inicial ===" << endl;
-    cout << "Costo total: " << solucion_inicial.costo_total << endl;
-    for (size_t i = 0; i < solucion_inicial.rutas.size(); ++i) {
-        cout << "Ruta " << i + 1 << ": ";
-        for (int id : solucion_inicial.rutas[i].nodos) cout << id << " ";
-        cout << "| Entrega: " << solucion_inicial.rutas[i].carga_entregada
-            << " | Recogida: " << solucion_inicial.rutas[i].carga_recogida
-            << " | Total: " << solucion_inicial.rutas[i].carga_utilizada
-            << " | Costo: " << solucion_inicial.rutas[i].costo_total << endl;
-    }
-    
     //Ajuste de parámetros para testeos (MODIFICABLE PARA PROBAR)
     float T0 = 50000.0;
     float alfa = 0.98;  
     int iteraciones_por_T = 500;
     int max_iteraciones = 500;
-    int swaps_por_vecino = 10;
+    int swaps_por_vecino = 5;
 
     Solucion solucion_final = simulated_annealing(solucion_inicial, mapa_nodos, capacidad_vehiculo, T0, alfa, iteraciones_por_T, max_iteraciones, swaps_por_vecino);
     clock_t fin = clock();
-    double tiempo_ejecucion = double(fin - inicio) / CLOCKS_PER_SEC;
-
-    //Borrar
-    cout << "\n=== Solución Final (SA) ===" << endl;
-    cout << "Costo total: " << solucion_final.costo_total << endl;
-    for (size_t i = 0; i < solucion_final.rutas.size(); ++i) {
-        cout << "Ruta " << i + 1 << ": ";
-        for (int id : solucion_final.rutas[i].nodos) cout << id << " ";
-        cout << "| Entrega: " << solucion_final.rutas[i].carga_entregada
-            << " | Recogida: " << solucion_final.rutas[i].carga_recogida
-            << " | Total: " << solucion_final.rutas[i].carga_utilizada
-            << " | Costo: " << solucion_final.rutas[i].costo_total << endl;
-    }
-    
+    double tiempo_ejecucion = double(fin - inicio) / CLOCKS_PER_SEC;    
     escribir_salida(nombre_instancia, solucion_final, mapa_nodos, tiempo_ejecucion);
     return 0;
 }
