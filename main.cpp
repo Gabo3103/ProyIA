@@ -374,7 +374,7 @@ Solucion simulated_annealing(Solucion solucion_inicial,
             }
         }
 
-        T *= alfa;
+        T *= alfa; //Enfriamiento
         t++;
     }
 
@@ -418,13 +418,13 @@ int main(int argc, char* argv[]) {
     float alfa = 0.98;  
     int iteraciones_por_T = 500;
     int max_iteraciones = 500;
-    int swaps_por_vecino = 5;
+    int swaps_por_vecino = 10;
 
     Solucion solucion_final = simulated_annealing(solucion_inicial, mapa_nodos, capacidad_vehiculo, T0, alfa, iteraciones_por_T, max_iteraciones, swaps_por_vecino);
     clock_t fin = clock();
     double tiempo_ejecucion = double(fin - inicio) / CLOCKS_PER_SEC;
 
-    //borrar
+    //Borrar
     cout << "\n=== Solución Final (SA) ===" << endl;
     cout << "Costo total: " << solucion_final.costo_total << endl;
     for (size_t i = 0; i < solucion_final.rutas.size(); ++i) {
