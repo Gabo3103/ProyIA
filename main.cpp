@@ -412,5 +412,7 @@ int main(int argc, char* argv[]) {
     clock_t fin = clock();
     double tiempo_ejecucion = double(fin - inicio) / CLOCKS_PER_SEC;    
     escribir_salida(nombre_instancia, solucion_final, mapa_nodos, tiempo_ejecucion);
+    float mejora = 100.0 * (solucion_inicial.costo_total - solucion_final.costo_total) / solucion_inicial.costo_total;
+    cout << "Mejora respecto a la solución inicial: " << mejora << "%" << endl;
     return 0;
 }
